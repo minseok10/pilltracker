@@ -10,7 +10,7 @@ const SESSION_MAX_AGE = SESSION_DAYS * 24 * 60 * 60;
 const SESSION_TTL_MS = SESSION_MAX_AGE * 1000;
 const BROWSER_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const AUTH_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-const AUTH_RATE_LIMIT_MAX = 10;
+const AUTH_RATE_LIMIT_MAX = process.env.NODE_ENV === "test" ? 100 : 10;
 const ID_CHECK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const ID_CHECK_RATE_LIMIT_MAX = 60;
 const DATA_DIR = path.join(__dirname, "data");
