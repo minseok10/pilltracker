@@ -39,7 +39,6 @@ const elements = {
   unlockPassphrase: document.querySelector("#unlockPassphrase"),
   enableEncryptionForm: document.querySelector("#enableEncryptionForm"),
   enablePassphrase: document.querySelector("#enablePassphrase"),
-  enablePassphraseConfirm: document.querySelector("#enablePassphraseConfirm"),
   encryptionWarningConfirm: document.querySelector("#encryptionWarningConfirm"),
   disableEncryptionForm: document.querySelector("#disableEncryptionForm"),
   disablePassphrase: document.querySelector("#disablePassphrase"),
@@ -120,23 +119,25 @@ async function restoreSession() {
 async function login(event) {
   event.preventDefault();
   setAuthMessage("");
+  const loginPassword = elements.loginPassword.value;
 
   try {
     const result = await apiRequest("/api/auth/login", {
       method: "POST",
       body: {
         username: elements.loginId.value.trim(),
-        password: elements.loginPassword.value,
+        password: loginPassword,
         remember: elements.loginRemember.checked
       }
     });
 
     currentUser = result.user;
     csrfToken = result.csrfToken;
-    elements.loginPassword.value = "";
-    await enterApp();
+    await enterApp(loginPassword);
   } catch (error) {
     setAuthMessage(error.message, true);
+  } finally {
+    elements.loginPassword.value = "";
   }
 }
 
@@ -200,7 +201,7 @@ async function checkRegisterId() {
   }
 }
 
-async function enterApp() {
+async function enterApp(loginPassword) {
   elements.authView.classList.add("hidden");
   elements.currentUserText.textContent = `${currentUser.username} 님의 기록`;
 
@@ -213,8 +214,27 @@ async function enterApp() {
       envelope: savedData.encryption
     };
     appData = createEmptyData();
+
+    if (loginPassword) {
+      try {
+        const result = await decryptEnvelope(encryptionState.envelope, loginPassword);
+        encryptionState.key = result.key;
+        encryptionState.locked = false;
+        appData = sanitizeData(result.data);
+        showApp();
+        loadConditionForm(today);
+        updateRangeNumbers();
+        renderAll();
+        return;
+      } catch (error) {
+        setSecurityMessage("로그인 비밀번호로 기록을 복호화하지 못했습니다. 비밀번호를 다시 입력해주세요.", true);
+      }
+    }
+
     showSecurity();
-    setSecurityMessage("암호화된 기록을 보려면 보안 암호를 입력해주세요.", false);
+    if (!loginPassword) {
+      setSecurityMessage("암호화된 기록을 보려면 로그인 비밀번호를 입력해주세요.", false);
+    }
     return;
   }
 
@@ -253,7 +273,7 @@ function openSecuritySettings() {
 
 function backToApp() {
   if (encryptionState.enabled && encryptionState.locked) {
-    setSecurityMessage("기록을 보려면 먼저 보안 암호로 잠금 해제해주세요.", true);
+    setSecurityMessage("기록을 보려면 먼저 로그인 비밀번호로 잠금 해제해주세요.", true);
     return;
   }
 
@@ -282,6 +302,7 @@ async function unlockEncryption(event) {
   setSecurityMessage("");
 
   try {
+    await verifyLoginPassword(elements.unlockPassphrase.value);
     const result = await decryptEnvelope(encryptionState.envelope, elements.unlockPassphrase.value);
     encryptionState.key = result.key;
     encryptionState.locked = false;
@@ -293,7 +314,7 @@ async function unlockEncryption(event) {
     renderAll();
     setSecurityMessage("잠금이 해제되었습니다.", false);
   } catch (error) {
-    setSecurityMessage("보안 암호가 올바르지 않거나 기록을 복호화할 수 없습니다.", true);
+    setSecurityMessage("로그인 비밀번호가 올바르지 않거나 기록을 복호화할 수 없습니다.", true);
   }
 }
 
@@ -302,13 +323,8 @@ async function enableEncryption(event) {
   setSecurityMessage("");
 
   const passphrase = elements.enablePassphrase.value;
-  if (passphrase.length < 8) {
-    setSecurityMessage("보안 암호는 8자 이상이어야 합니다.", true);
-    return;
-  }
-
-  if (passphrase !== elements.enablePassphraseConfirm.value) {
-    setSecurityMessage("보안 암호 확인이 일치하지 않습니다.", true);
+  if (!passphrase) {
+    setSecurityMessage("로그인 비밀번호를 입력해주세요.", true);
     return;
   }
 
@@ -318,6 +334,7 @@ async function enableEncryption(event) {
   }
 
   try {
+    await verifyLoginPassword(passphrase);
     const encrypted = await createEncryptedPayload(appData, passphrase);
     await saveRawData(encrypted.payload);
     encryptionState = {
@@ -339,6 +356,7 @@ async function disableEncryption(event) {
   setSecurityMessage("");
 
   try {
+    await verifyLoginPassword(elements.disablePassphrase.value);
     const result = await decryptEnvelope(encryptionState.envelope, elements.disablePassphrase.value);
     const plainData = sanitizeData(result.data);
     await saveRawData(plainData);
@@ -351,7 +369,7 @@ async function disableEncryption(event) {
     renderAll();
     setSecurityMessage("모든 기록을 복호화하고 암호화를 껐습니다.", false);
   } catch (error) {
-    setSecurityMessage("보안 암호가 올바르지 않거나 기록을 복호화할 수 없습니다.", true);
+    setSecurityMessage("로그인 비밀번호가 올바르지 않거나 기록을 복호화할 수 없습니다.", true);
   }
 }
 
@@ -633,7 +651,7 @@ function loadData() {
 async function saveData(data) {
   if (encryptionState.enabled) {
     if (encryptionState.locked || !encryptionState.key) {
-      throw new Error("보안 암호로 잠금 해제한 뒤 저장할 수 있습니다.");
+      throw new Error("로그인 비밀번호로 잠금 해제한 뒤 저장할 수 있습니다.");
     }
 
     const encryptedPayload = await encryptDataWithExistingKey(data, encryptionState.key, encryptionState.envelope);
@@ -840,6 +858,13 @@ async function apiRequest(path, options) {
   }
 
   return result;
+}
+
+async function verifyLoginPassword(password) {
+  await apiRequest("/api/auth/verify-password", {
+    method: "POST",
+    body: { password: password }
+  });
 }
 
 function setAuthMessage(message, isError) {

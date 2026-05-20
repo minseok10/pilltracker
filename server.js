@@ -161,6 +161,35 @@ async function handleApi(req, res, requestUrl) {
     return;
   }
 
+  if (req.method === "POST" && pathname === "/api/auth/verify-password") {
+    if (!consumeRateLimit(`auth:${getClientIp(req)}`, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)) {
+      sendJson(res, 429, { error: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요." });
+      return;
+    }
+
+    const session = getAuthenticatedSession(req);
+    if (!session) {
+      sendJson(res, 401, { error: "로그인이 필요합니다." });
+      return;
+    }
+
+    if (!isValidCsrf(req, session)) {
+      sendJson(res, 403, { error: "보안 토큰이 올바르지 않습니다. 새로고침 후 다시 시도해주세요." });
+      return;
+    }
+
+    const body = await readJsonBody(req);
+    const password = String(body.password || "");
+    const user = db.users[session.username];
+    if (!user || hashPassword(password, user.passwordSalt) !== user.passwordHash) {
+      sendJson(res, 401, { error: "비밀번호가 올바르지 않습니다." });
+      return;
+    }
+
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
   if (req.method === "GET" && pathname === "/api/auth/me") {
     const session = getAuthenticatedSession(req);
     if (!session) {
