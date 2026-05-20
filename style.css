@@ -48,6 +48,13 @@ textarea {
   gap: 12px;
 }
 
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: var(--primary);
@@ -96,6 +103,12 @@ h3 {
   padding: 12px 14px;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.warning-notice {
+  border-color: #e1b8a8;
+  background: #fff7f2;
+  color: #715045;
 }
 
 .auth-grid {
@@ -214,6 +227,12 @@ textarea:focus {
 .danger-button {
   min-height: 40px;
   padding: 8px 12px;
+}
+
+.full-button {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 18px;
 }
 
 .small-button {

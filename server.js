@@ -410,6 +410,14 @@ function createEmptyUserData() {
 
 function sanitizeUserData(data) {
   const source = data && typeof data === "object" ? data : {};
+
+  if (source.encrypted === true && source.encryption && typeof source.encryption === "object") {
+    return {
+      encrypted: true,
+      encryption: source.encryption
+    };
+  }
+
   return {
     medicines: source.medicines && typeof source.medicines === "object" ? source.medicines : {},
     conditions: source.conditions && typeof source.conditions === "object" ? source.conditions : {}

@@ -66,7 +66,10 @@
     <header class="app-header">
       <div class="account-row">
         <p class="eyebrow">개인 기록용</p>
-        <button id="logoutButton" class="text-button" type="button">로그아웃</button>
+        <div class="account-actions">
+          <button id="openSecurityButton" class="text-button" type="button">보안 설정</button>
+          <button id="logoutButton" class="text-button" type="button">로그아웃</button>
+        </div>
       </div>
       <h1>복용 기록</h1>
       <p id="todayText" class="today-text"></p>
@@ -174,6 +177,69 @@
         <div id="historyConditionView" class="condition-view"></div>
       </div>
     </section>
+  </main>
+
+  <main id="securityView" class="app hidden">
+    <header class="app-header">
+      <div class="account-row">
+        <p class="eyebrow">계정 메뉴</p>
+        <div class="account-actions">
+          <button id="backToAppButton" class="text-button" type="button">기록으로 돌아가기</button>
+          <button id="securityLogoutButton" class="text-button" type="button">로그아웃</button>
+        </div>
+      </div>
+      <h1>보안 설정</h1>
+      <p id="securityStatusText" class="today-text"></p>
+    </header>
+
+    <section class="notice warning-notice" aria-label="암호화 안내">
+      서버 저장 암호화를 켜면 기록은 브라우저에서 암호화된 뒤 서버에 저장됩니다. 보안 암호는 서버에 저장되지 않으므로 잃어버리면 기록을 복구할 수 없습니다.
+    </section>
+
+    <section id="encryptedLockedPanel" class="card hidden">
+      <h2>기록 잠금 해제</h2>
+      <p class="muted">이 계정의 기록은 암호화되어 있습니다. 기록을 보려면 보안 암호를 입력해주세요.</p>
+
+      <form id="unlockEncryptionForm">
+        <label for="unlockPassphrase">보안 암호</label>
+        <input id="unlockPassphrase" type="password" autocomplete="current-password" required>
+        <button class="primary-button" type="submit">잠금 해제</button>
+      </form>
+    </section>
+
+    <section id="encryptionOffPanel" class="card hidden">
+      <h2>서버 저장 암호화 켜기</h2>
+      <p class="muted">활성화하면 현재 저장된 모든 기록이 암호화됩니다.</p>
+
+      <form id="enableEncryptionForm">
+        <label for="enablePassphrase">보안 암호</label>
+        <input id="enablePassphrase" type="password" autocomplete="new-password" minlength="8" required>
+
+        <label for="enablePassphraseConfirm">보안 암호 확인</label>
+        <input id="enablePassphraseConfirm" type="password" autocomplete="new-password" minlength="8" required>
+
+        <label class="checkbox-field compact-checkbox">
+          <input id="encryptionWarningConfirm" type="checkbox" required>
+          <span>보안 암호를 잃어버리면 기록을 복구할 수 없음을 이해했습니다.</span>
+        </label>
+
+        <button class="primary-button" type="submit">암호화 켜기</button>
+      </form>
+    </section>
+
+    <section id="encryptionOnPanel" class="card hidden">
+      <h2>서버 저장 암호화 끄기</h2>
+      <p class="muted">비활성화하면 현재 암호화된 모든 기록이 복호화되어 서버에 일반 데이터로 저장됩니다.</p>
+
+      <form id="disableEncryptionForm">
+        <label for="disablePassphrase">보안 암호</label>
+        <input id="disablePassphrase" type="password" autocomplete="current-password" required>
+
+        <button class="danger-button full-button" type="submit">암호화 끄기</button>
+      </form>
+    </section>
+
+    <p id="securityMessage" class="auth-message" role="status"></p>
   </main>
 
   <script src="app.js"></script>
