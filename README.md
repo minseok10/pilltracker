@@ -37,6 +37,8 @@ Playwright로 실제 브라우저 UI 테스트를 실행할 수 있습니다.
 npm test
 ```
 
+테스트는 앱 서버를 `http://localhost:3100`에서 실행하고 `.test-data/playwright-db.json` 전용 DB를 사용합니다. 실제 사용 데이터인 `data/db.json`은 건드리지 않습니다.
+
 브라우저가 열리는 모습을 보면서 실행하려면 다음 명령을 사용합니다.
 
 ```bash

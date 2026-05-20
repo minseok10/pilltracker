@@ -13,8 +13,10 @@ const AUTH_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_RATE_LIMIT_MAX = process.env.NODE_ENV === "test" ? 100 : 10;
 const ID_CHECK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const ID_CHECK_RATE_LIMIT_MAX = 60;
-const DATA_DIR = path.join(__dirname, "data");
-const DB_FILE = path.join(DATA_DIR, "db.json");
+const DB_FILE = process.env.DATA_FILE
+  ? path.resolve(__dirname, process.env.DATA_FILE)
+  : path.join(__dirname, "data", "db.json");
+const DATA_DIR = path.dirname(DB_FILE);
 const STATIC_FILES = new Map([
   ["/", "index.html"],
   ["/index.html", "index.html"],
