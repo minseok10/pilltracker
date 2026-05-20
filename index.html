@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>복용 기록</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="authView" class="app auth-view hidden">
+    <header class="app-header">
+      <p class="eyebrow">개인 기록용</p>
+      <h1>복용 기록</h1>
+      <p class="today-text">로그인하면 기록이 서버에 저장됩니다.</p>
+    </header>
+
+    <section class="notice" aria-label="안내">
+      이 앱은 의료 조언이나 진단용이 아니라, 복용 여부와 컨디션을 남기는 개인 기록용입니다.
+    </section>
+
+    <section class="auth-grid">
+      <div class="card">
+        <h2>로그인</h2>
+
+        <form id="loginForm">
+          <label for="loginId">ID</label>
+          <input id="loginId" type="text" autocomplete="username" required>
+
+          <label for="loginPassword">비밀번호</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" required>
+
+          <label class="checkbox-field compact-checkbox">
+            <input id="loginRemember" type="checkbox" checked>
+            <span>자동 로그인</span>
+          </label>
+
+          <button class="primary-button" type="submit">로그인</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>가입</h2>
+
+        <form id="registerForm">
+          <label for="registerId">ID</label>
+          <input id="registerId" type="text" autocomplete="username" required>
+          <p id="registerIdStatus" class="field-message muted">영문, 숫자, 밑줄로 3~20자</p>
+
+          <label for="registerPassword">비밀번호</label>
+          <input id="registerPassword" type="password" autocomplete="new-password" minlength="4" required>
+
+          <label class="checkbox-field compact-checkbox">
+            <input id="registerRemember" type="checkbox" checked>
+            <span>자동 로그인</span>
+          </label>
+
+          <button id="registerSubmitButton" class="secondary-button" type="submit">가입하고 시작</button>
+        </form>
+      </div>
+    </section>
+
+    <p id="authMessage" class="auth-message" role="status"></p>
+  </main>
+
+  <main id="appMain" class="app hidden">
+    <header class="app-header">
+      <div class="account-row">
+        <p class="eyebrow">개인 기록용</p>
+        <button id="logoutButton" class="text-button" type="button">로그아웃</button>
+      </div>
+      <h1>복용 기록</h1>
+      <p id="todayText" class="today-text"></p>
+      <p id="currentUserText" class="today-text"></p>
+    </header>
+
+    <section class="notice" aria-label="안내">
+      이 앱은 의료 조언이나 진단용이 아니라, 복용 여부와 컨디션을 남기는 개인 기록용입니다.
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <h2>약 복용 입력</h2>
+        <button id="cancelEditButton" class="text-button hidden" type="button">수정 취소</button>
+      </div>
+
+      <form id="medicineForm">
+        <label for="medicineName">약 이름</label>
+        <input id="medicineName" type="text" placeholder="예: 비타민, 처방약 이름" required>
+
+        <label for="timeSlot">복용 시간대</label>
+        <select id="timeSlot">
+          <option value="아침">아침</option>
+          <option value="점심">점심</option>
+          <option value="저녁">저녁</option>
+          <option value="자기 전">자기 전</option>
+          <option value="직접 입력">직접 입력</option>
+        </select>
+
+        <div id="customSlotWrap" class="hidden">
+          <label for="customSlot">직접 입력 시간대</label>
+          <input id="customSlot" type="text" placeholder="예: 운동 후, 오후 간식 후">
+        </div>
+
+        <div class="two-column">
+          <div>
+            <label for="takenTime">정확한 시간</label>
+            <input id="takenTime" type="time">
+          </div>
+          <label class="checkbox-field">
+            <input id="isTaken" type="checkbox">
+            <span>복용함</span>
+          </label>
+        </div>
+
+        <label for="medicineMemo">메모</label>
+        <textarea id="medicineMemo" rows="3" placeholder="예: 속 울렁거림, 졸림, 식후 복용"></textarea>
+
+        <button id="medicineSubmitButton" class="primary-button" type="submit">기록 추가</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>오늘의 컨디션</h2>
+
+      <form id="conditionForm">
+        <div class="range-row">
+          <label for="sleepiness">졸림 정도 <strong id="sleepinessValue">3</strong></label>
+          <input id="sleepiness" type="range" min="1" max="5" value="3">
+        </div>
+
+        <div class="range-row">
+          <label for="focus">집중도 <strong id="focusValue">3</strong></label>
+          <input id="focus" type="range" min="1" max="5" value="3">
+        </div>
+
+        <div class="range-row">
+          <label for="overallCondition">종합컨디션 <strong id="overallConditionValue">3</strong></label>
+          <input id="overallCondition" type="range" min="1" max="5" value="3">
+        </div>
+
+        <label for="sleepHours">수면 시간</label>
+        <input id="sleepHours" type="number" min="0" max="24" step="0.5" placeholder="예: 7.5">
+
+        <label class="checkbox-field full-width">
+          <input id="hadCaffeine" type="checkbox">
+          <span>카페인 섭취함</span>
+        </label>
+
+        <label for="conditionMemo">특이사항 메모</label>
+        <textarea id="conditionMemo" rows="3" placeholder="예: 두통 약간, 컨디션 좋음"></textarea>
+
+        <button class="secondary-button" type="submit">컨디션 저장</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>오늘 복용 기록</h2>
+      <div id="todayMedicineList" class="record-list"></div>
+    </section>
+
+    <section class="card">
+      <h2>이전 기록 보기</h2>
+
+      <label for="historyDate">날짜 선택</label>
+      <input id="historyDate" type="date">
+
+      <div class="history-block">
+        <h3>복용 기록</h3>
+        <div id="historyMedicineList" class="record-list"></div>
+      </div>
+
+      <div class="history-block">
+        <h3>컨디션 기록</h3>
+        <div id="historyConditionView" class="condition-view"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

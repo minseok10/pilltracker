@@ -1,0 +1,17 @@
+{
+  "name": "pilltracker",
+  "version": "1.0.0",
+  "description": "A simple pill and condition tracker with ID/password login, cookie auto-login, and server-side JSON storage.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/minseok10/pilltracker.git"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
