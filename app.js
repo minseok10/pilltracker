@@ -23,6 +23,7 @@ const elements = {
   registerForm: document.querySelector("#registerForm"),
   registerId: document.querySelector("#registerId"),
   registerPassword: document.querySelector("#registerPassword"),
+  registerPasswordConfirm: document.querySelector("#registerPasswordConfirm"),
   registerRemember: document.querySelector("#registerRemember"),
   registerIdStatus: document.querySelector("#registerIdStatus"),
   registerSubmitButton: document.querySelector("#registerSubmitButton"),
@@ -144,13 +145,20 @@ async function login(event) {
 async function register(event) {
   event.preventDefault();
   setAuthMessage("");
+  const password = elements.registerPassword.value;
+
+  if (password !== elements.registerPasswordConfirm.value) {
+    setAuthMessage("비밀번호 확인이 일치하지 않습니다.", true);
+    return;
+  }
 
   try {
     const result = await apiRequest("/api/auth/register", {
       method: "POST",
       body: {
         username: elements.registerId.value.trim(),
-        password: elements.registerPassword.value,
+        password: password,
+        passwordConfirm: elements.registerPasswordConfirm.value,
         remember: elements.registerRemember.checked
       }
     });
@@ -158,6 +166,7 @@ async function register(event) {
     currentUser = result.user;
     csrfToken = result.csrfToken;
     elements.registerPassword.value = "";
+    elements.registerPasswordConfirm.value = "";
     await enterApp();
   } catch (error) {
     setAuthMessage(error.message, true);

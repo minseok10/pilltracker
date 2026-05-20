@@ -80,6 +80,7 @@ async function handleApi(req, res, requestUrl) {
     const body = await readJsonBody(req);
     const username = String(body.username || "").trim();
     const password = String(body.password || "");
+    const passwordConfirm = String(body.passwordConfirm || "");
     const remember = body.remember !== false;
     const usernameResult = validateUsername(username);
     const passwordResult = validatePassword(password);
@@ -92,6 +93,11 @@ async function handleApi(req, res, requestUrl) {
 
     if (!passwordResult.ok) {
       sendJson(res, 400, { error: passwordResult.message });
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      sendJson(res, 400, { error: "비밀번호 확인이 일치하지 않습니다." });
       return;
     }
 
