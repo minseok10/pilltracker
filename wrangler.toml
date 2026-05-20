@@ -1,0 +1,9 @@
+name = "pilltracker"
+compatibility_date = "2026-05-20"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pilltracker"
+database_id = "df9fb6a4-df19-41d0-bc6a-64f301f11c15"
+preview_database_id = "df9fb6a4-df19-41d0-bc6a-64f301f11c15"

@@ -51,6 +51,30 @@ npm run test:ui
 npm run test:report
 ```
 
+## Cloudflare Pages 배포
+
+이 앱은 Cloudflare Pages에서는 `dist/` 정적 파일과 Pages Functions API로 배포됩니다. 서버 데이터는 Cloudflare D1 `pilltracker` 데이터베이스에 저장됩니다.
+
+로컬에서 Pages용 파일을 만들려면 다음 명령을 실행합니다.
+
+```bash
+npm run build:pages
+```
+
+수동 배포는 다음 명령으로 실행할 수 있습니다.
+
+```bash
+npx wrangler d1 migrations apply pilltracker --remote
+npx wrangler pages deploy dist --project-name pilltracker --branch main
+```
+
+`main` 브랜치에 push하면 GitHub Actions가 자동 배포하도록 `.github/workflows/deploy-pages.yml`이 준비되어 있습니다. 자동 배포를 사용하려면 GitHub repository secret에 다음 값이 필요합니다.
+
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+
+Cloudflare API Token은 Pages edit 권한과 D1 edit 권한이 있는 토큰을 사용하세요.
+
 ## 데이터 저장
 
 서버를 처음 실행하면 `data/db.json` 파일이 자동으로 만들어집니다. 이 파일에는 사용자 계정, 비밀번호 해시, 로그인 세션, 복용 기록과 컨디션 기록이 저장됩니다.

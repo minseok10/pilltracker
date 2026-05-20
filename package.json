@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "build:pages": "rm -rf dist && mkdir -p dist && cp index.html app.js style.css _headers dist/",
     "test": "playwright test",
     "test:ui": "playwright test --headed",
     "test:report": "playwright show-report"
@@ -18,6 +19,7 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0"
+    "@playwright/test": "^1.60.0",
+    "wrangler": "^4.93.0"
   }
 }
