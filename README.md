@@ -36,6 +36,16 @@
 
 `data/db.json`은 `.gitignore`에 포함되어 있어 GitHub에 업로드되지 않습니다.
 
+## 보안 기능
+
+- 비밀번호 원문 미저장 및 사용자별 salt 기반 PBKDF2 해시 저장
+- `HttpOnly`, `SameSite=Lax` 세션 쿠키 사용
+- HTTPS 환경에서 쿠키 `Secure` 속성 자동 적용
+- 로그인, 가입, ID 중복 확인 요청 rate limit
+- 데이터 저장 및 로그아웃 요청 CSRF 토큰 검사
+- 상태 변경 요청의 `Origin` / `Referer` 검사
+- `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` 보안 헤더 적용
+
 ## 휴대폰에서 테스트하는 방법
 
 컴퓨터와 휴대폰이 같은 Wi-Fi에 연결되어 있어야 합니다.

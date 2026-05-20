@@ -9,6 +9,10 @@ const SESSION_DAYS = 30;
 const SESSION_MAX_AGE = SESSION_DAYS * 24 * 60 * 60;
 const SESSION_TTL_MS = SESSION_MAX_AGE * 1000;
 const BROWSER_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const AUTH_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_RATE_LIMIT_MAX = 10;
+const ID_CHECK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const ID_CHECK_RATE_LIMIT_MAX = 60;
 const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const STATIC_FILES = new Map([
@@ -19,6 +23,7 @@ const STATIC_FILES = new Map([
 ]);
 
 let db = loadDb();
+const rateLimits = new Map();
 
 const server = http.createServer(async function (req, res) {
   try {
@@ -43,7 +48,17 @@ server.listen(PORT, function () {
 async function handleApi(req, res, requestUrl) {
   const pathname = requestUrl.pathname;
 
+  if (!isAllowedOrigin(req)) {
+    sendJson(res, 403, { error: "허용되지 않은 출처의 요청입니다." });
+    return;
+  }
+
   if (req.method === "GET" && pathname === "/api/auth/check-id") {
+    if (!consumeRateLimit(`id-check:${getClientIp(req)}`, ID_CHECK_RATE_LIMIT_MAX, ID_CHECK_RATE_LIMIT_WINDOW_MS)) {
+      sendJson(res, 429, { error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." });
+      return;
+    }
+
     const username = requestUrl.searchParams.get("username") || "";
     const result = validateUsername(username);
     const normalized = normalizeUsername(username);
@@ -57,6 +72,11 @@ async function handleApi(req, res, requestUrl) {
   }
 
   if (req.method === "POST" && pathname === "/api/auth/register") {
+    if (!consumeRateLimit(`auth:${getClientIp(req)}`, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)) {
+      sendJson(res, 429, { error: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요." });
+      return;
+    }
+
     const body = await readJsonBody(req);
     const username = String(body.username || "").trim();
     const password = String(body.password || "");
@@ -91,13 +111,19 @@ async function handleApi(req, res, requestUrl) {
     };
 
     const token = createSession(normalized, remember);
+    const session = db.sessions[token];
     saveDb();
-    setSessionCookie(res, token, remember);
-    sendJson(res, 201, { user: publicUser(db.users[normalized]) });
+    setSessionCookie(req, res, token, remember);
+    sendJson(res, 201, authResponse(db.users[normalized], session));
     return;
   }
 
   if (req.method === "POST" && pathname === "/api/auth/login") {
+    if (!consumeRateLimit(`auth:${getClientIp(req)}`, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)) {
+      sendJson(res, 429, { error: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요." });
+      return;
+    }
+
     const body = await readJsonBody(req);
     const normalized = normalizeUsername(String(body.username || ""));
     const password = String(body.password || "");
@@ -110,32 +136,39 @@ async function handleApi(req, res, requestUrl) {
     }
 
     const token = createSession(normalized, remember);
+    const session = db.sessions[token];
     saveDb();
-    setSessionCookie(res, token, remember);
-    sendJson(res, 200, { user: publicUser(user) });
+    setSessionCookie(req, res, token, remember);
+    sendJson(res, 200, authResponse(user, session));
     return;
   }
 
   if (req.method === "POST" && pathname === "/api/auth/logout") {
     const token = getSessionToken(req);
+    const session = token ? db.sessions[token] : null;
+    if (session && !isValidCsrf(req, session)) {
+      sendJson(res, 403, { error: "보안 토큰이 올바르지 않습니다. 새로고침 후 다시 시도해주세요." });
+      return;
+    }
+
     if (token) {
       delete db.sessions[token];
       saveDb();
     }
 
-    clearSessionCookie(res);
+    clearSessionCookie(req, res);
     sendJson(res, 200, { ok: true });
     return;
   }
 
   if (req.method === "GET" && pathname === "/api/auth/me") {
-    const user = getAuthenticatedUser(req);
-    if (!user) {
+    const session = getAuthenticatedSession(req);
+    if (!session) {
       sendJson(res, 401, { error: "로그인이 필요합니다." });
       return;
     }
 
-    sendJson(res, 200, { user: publicUser(user) });
+    sendJson(res, 200, authResponse(db.users[session.username], session));
     return;
   }
 
@@ -154,6 +187,11 @@ async function handleApi(req, res, requestUrl) {
     const session = getAuthenticatedSession(req);
     if (!session) {
       sendJson(res, 401, { error: "로그인이 필요합니다." });
+      return;
+    }
+
+    if (!isValidCsrf(req, session)) {
+      sendJson(res, 403, { error: "보안 토큰이 올바르지 않습니다. 새로고침 후 다시 시도해주세요." });
       return;
     }
 
@@ -204,6 +242,7 @@ function serveStatic(res, pathname) {
     ".js": "application/javascript; charset=utf-8"
   };
 
+  applySecurityHeaders(res);
   res.writeHead(200, { "Content-Type": contentTypes[ext] || "text/plain; charset=utf-8" });
   fs.createReadStream(filePath).pipe(res);
 }
@@ -255,13 +294,19 @@ function getAuthenticatedSession(req) {
     return null;
   }
 
+  if (!session.csrfToken) {
+    session.csrfToken = createToken(32);
+    saveDb();
+  }
+
   return session;
 }
 
 function createSession(username, remember) {
-  const token = crypto.randomBytes(32).toString("hex");
+  const token = createToken(32);
   db.sessions[token] = {
     username,
+    csrfToken: createToken(32),
     expiresAt: Date.now() + (remember ? SESSION_TTL_MS : BROWSER_SESSION_TTL_MS)
   };
   return token;
@@ -295,13 +340,17 @@ function parseCookies(cookieHeader) {
   }, {});
 }
 
-function setSessionCookie(res, token, remember) {
+function setSessionCookie(req, res, token, remember) {
   const cookieParts = [
     `sid=${encodeURIComponent(token)}`,
     "HttpOnly",
     "Path=/",
     "SameSite=Lax"
   ];
+
+  if (isSecureRequest(req)) {
+    cookieParts.push("Secure");
+  }
 
   if (remember) {
     cookieParts.push(`Max-Age=${SESSION_MAX_AGE}`);
@@ -310,8 +359,20 @@ function setSessionCookie(res, token, remember) {
   res.setHeader("Set-Cookie", [cookieParts.join("; ")]);
 }
 
-function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", ["sid=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0"]);
+function clearSessionCookie(req, res) {
+  const cookieParts = [
+    "sid=",
+    "HttpOnly",
+    "Path=/",
+    "SameSite=Lax",
+    "Max-Age=0"
+  ];
+
+  if (isSecureRequest(req)) {
+    cookieParts.push("Secure");
+  }
+
+  res.setHeader("Set-Cookie", [cookieParts.join("; ")]);
 }
 
 function hashPassword(password, salt) {
@@ -361,12 +422,116 @@ function publicUser(user) {
   };
 }
 
+function authResponse(user, session) {
+  return {
+    user: publicUser(user),
+    csrfToken: session.csrfToken
+  };
+}
+
+function createToken(byteLength) {
+  return crypto.randomBytes(byteLength).toString("hex");
+}
+
+function isValidCsrf(req, session) {
+  const token = req.headers["x-csrf-token"];
+  if (typeof session.csrfToken !== "string") {
+    return false;
+  }
+
+  if (typeof token !== "string" || token.length !== session.csrfToken.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(session.csrfToken));
+}
+
+function isAllowedOrigin(req) {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+    return true;
+  }
+
+  const expectedOrigin = getExpectedOrigin(req);
+  const origin = req.headers.origin;
+  if (origin) {
+    return origin === expectedOrigin;
+  }
+
+  const referer = req.headers.referer;
+  if (referer) {
+    try {
+      return new URL(referer).origin === expectedOrigin;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getExpectedOrigin(req) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const protocol = forwardedProto || (req.socket.encrypted ? "https" : "http");
+  return `${protocol}://${req.headers.host || `localhost:${PORT}`}`;
+}
+
+function isSecureRequest(req) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  return forwardedProto === "https" || Boolean(req.socket.encrypted);
+}
+
+function consumeRateLimit(key, maxRequests, windowMs) {
+  const now = Date.now();
+  const current = rateLimits.get(key);
+
+  if (!current || current.resetAt <= now) {
+    rateLimits.set(key, { count: 1, resetAt: now + windowMs });
+    cleanupRateLimits(now);
+    return true;
+  }
+
+  current.count += 1;
+  return current.count <= maxRequests;
+}
+
+function cleanupRateLimits(now) {
+  for (const [key, value] of rateLimits) {
+    if (value.resetAt <= now) {
+      rateLimits.delete(key);
+    }
+  }
+}
+
+function getClientIp(req) {
+  const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwardedFor || req.socket.remoteAddress || "unknown";
+}
+
+function applySecurityHeaders(res) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Content-Security-Policy", [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "script-src 'self'",
+    "style-src 'self'"
+  ].join("; "));
+}
+
 function sendJson(res, statusCode, payload) {
+  applySecurityHeaders(res);
+  res.setHeader("Cache-Control", "no-store");
   res.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(payload));
 }
 
 function sendText(res, statusCode, text) {
+  applySecurityHeaders(res);
   res.writeHead(statusCode, { "Content-Type": "text/plain; charset=utf-8" });
   res.end(text);
 }

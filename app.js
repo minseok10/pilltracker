@@ -4,6 +4,7 @@ const today = getTodayString();
 let editingRecordId = null;
 let appData = createEmptyData();
 let currentUser = null;
+let csrfToken = "";
 let idCheckTimer = null;
 
 const elements = {
@@ -70,6 +71,7 @@ function bindEvents() {
   elements.timeSlot.addEventListener("change", toggleCustomSlot);
   elements.cancelEditButton.addEventListener("click", resetMedicineForm);
   elements.historyDate.addEventListener("change", renderHistory);
+  elements.todayMedicineList.addEventListener("click", handleMedicineListClick);
 
   [elements.sleepiness, elements.focus, elements.overallCondition].forEach(function (range) {
     range.addEventListener("input", updateRangeNumbers);
@@ -80,6 +82,7 @@ async function restoreSession() {
   try {
     const result = await apiRequest("/api/auth/me");
     currentUser = result.user;
+    csrfToken = result.csrfToken;
     await enterApp();
   } catch (error) {
     showAuth();
@@ -101,6 +104,7 @@ async function login(event) {
     });
 
     currentUser = result.user;
+    csrfToken = result.csrfToken;
     elements.loginPassword.value = "";
     await enterApp();
   } catch (error) {
@@ -123,6 +127,7 @@ async function register(event) {
     });
 
     currentUser = result.user;
+    csrfToken = result.csrfToken;
     elements.registerPassword.value = "";
     await enterApp();
   } catch (error) {
@@ -134,6 +139,7 @@ async function register(event) {
 async function logout() {
   await apiRequest("/api/auth/logout", { method: "POST" });
   currentUser = null;
+  csrfToken = "";
   appData = createEmptyData();
   resetMedicineForm();
   showAuth();
@@ -179,6 +185,22 @@ async function enterApp() {
 function showAuth() {
   elements.appMain.classList.add("hidden");
   elements.authView.classList.remove("hidden");
+}
+
+function handleMedicineListClick(event) {
+  const button = event.target.closest("button[data-action][data-record-id]");
+  if (!button) {
+    return;
+  }
+
+  const recordId = button.dataset.recordId;
+  if (button.dataset.action === "edit") {
+    editMedicineRecord(recordId);
+  }
+
+  if (button.dataset.action === "delete") {
+    deleteMedicineRecord(recordId);
+  }
 }
 
 async function saveMedicineRecord(event) {
@@ -373,8 +395,8 @@ function createMedicineRecordHtml(record, showActions) {
   const memoHtml = record.memo ? `<p class="record-memo">${escapeHtml(record.memo)}</p>` : "";
   const actionsHtml = showActions ? `
     <div class="record-actions">
-      <button class="small-button" type="button" onclick="editMedicineRecord('${record.id}')">수정</button>
-      <button class="danger-button" type="button" onclick="deleteMedicineRecord('${record.id}')">삭제</button>
+      <button class="small-button" type="button" data-action="edit" data-record-id="${escapeHtml(record.id)}">수정</button>
+      <button class="danger-button" type="button" data-action="delete" data-record-id="${escapeHtml(record.id)}">삭제</button>
     </div>
   ` : "";
 
@@ -483,9 +505,20 @@ function createEmptyData() {
 
 async function apiRequest(path, options) {
   const requestOptions = options || {};
+  const method = requestOptions.method || "GET";
+  const headers = {};
+
+  if (requestOptions.body) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (csrfToken && method !== "GET") {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+
   const response = await fetch(path, {
-    method: requestOptions.method || "GET",
-    headers: requestOptions.body ? { "Content-Type": "application/json" } : undefined,
+    method: method,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
     body: requestOptions.body ? JSON.stringify(requestOptions.body) : undefined
   });
   const result = await response.json().catch(function () {
