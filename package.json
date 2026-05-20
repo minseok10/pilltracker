@@ -12,7 +12,8 @@
     "dev": "node server.js",
     "build:pages": "rm -rf dist && mkdir -p dist && cp index.html app.js style.css _headers dist/",
     "test": "playwright test",
-    "test:ui": "playwright test --headed",
+    "test:api": "playwright test tests/api.spec.js",
+    "test:ui": "playwright test tests/ui.spec.js --headed",
     "test:report": "playwright show-report"
   },
   "engines": {
