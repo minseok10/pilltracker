@@ -11,6 +11,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "build:pages": "rm -rf dist && mkdir -p dist && cp index.html app.js style.css _headers dist/",
+    "migrate:remote": "wrangler d1 migrations apply pilltracker --remote",
+    "deploy:pages": "npm run build:pages && wrangler pages deploy dist --project-name pilltracker --branch main",
     "test": "playwright test",
     "test:api": "playwright test tests/api.spec.js",
     "test:ui": "playwright test tests/ui.spec.js --headed",
