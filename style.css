@@ -152,6 +152,21 @@ textarea {
   resize: vertical;
 }
 
+/* iOS Safari gives date/time inputs an intrinsic width and internal margins on
+   ::-webkit-date-and-time-value, which pushes the control past its container.
+   Constrain the width and zero the inner margin so the picker stays in the card. */
+input[type="date"],
+input[type="time"] {
+  max-width: 100%;
+  min-width: 0;
+}
+
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  margin: 0;
+  text-align: left;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
@@ -411,11 +426,15 @@ button:disabled {
   margin-top: 0;
 }
 
-.history-week-range {
+.history-range-label {
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+.history-range-label:empty {
+  display: none;
 }
 
 .history-day {

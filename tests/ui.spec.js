@@ -135,8 +135,9 @@ test("월 단위로 이전 복용 기록을 모아 볼 수 있다", async ({ pag
   await expect(page.locator("#appMain")).toBeVisible();
 
   await page.check('input[name="historyMode"][value="month"]');
-  await page.fill("#historyMonth", "2026-05");
+  await page.fill("#historyDate", "2026-05-15");
 
+  await expect(page.locator("#historyRangeLabel")).toContainText("2026년 5월");
   await expect(page.locator("#historyMedicineList")).toContainText("오월초약");
   await expect(page.locator("#historyMedicineList")).toContainText("오월말약");
   await expect(page.locator("#historyMedicineList")).toContainText("월 보기 메모");
@@ -201,10 +202,10 @@ test("주 단위는 고른 날짜가 속한 월~일만 모아 보여준다", asy
   await expect(page.locator("#appMain")).toBeVisible();
 
   await page.check('input[name="historyMode"][value="week"]');
-  await page.fill("#historyWeekDate", "2026-05-20");
+  await page.fill("#historyDate", "2026-05-20");
 
-  await expect(page.locator("#historyWeekRange")).toContainText("5월 18일");
-  await expect(page.locator("#historyWeekRange")).toContainText("5월 24일");
+  await expect(page.locator("#historyRangeLabel")).toContainText("5월 18일");
+  await expect(page.locator("#historyRangeLabel")).toContainText("5월 24일");
   await expect(page.locator("#historyMedicineList")).toContainText("이번주월요약");
   await expect(page.locator("#historyMedicineList")).toContainText("이번주일요약");
   await expect(page.locator("#historyMedicineList")).not.toContainText("지난주일요약");

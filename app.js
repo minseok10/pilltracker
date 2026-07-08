@@ -68,13 +68,8 @@ const elements = {
   conditionMemo: document.querySelector("#conditionMemo"),
   todayMedicineList: document.querySelector("#todayMedicineList"),
   historyModeInputs: document.querySelectorAll('input[name="historyMode"]'),
-  historyDayField: document.querySelector("#historyDayField"),
-  historyWeekField: document.querySelector("#historyWeekField"),
-  historyMonthField: document.querySelector("#historyMonthField"),
   historyDate: document.querySelector("#historyDate"),
-  historyWeekDate: document.querySelector("#historyWeekDate"),
-  historyWeekRange: document.querySelector("#historyWeekRange"),
-  historyMonth: document.querySelector("#historyMonth"),
+  historyRangeLabel: document.querySelector("#historyRangeLabel"),
   historyMedicineList: document.querySelector("#historyMedicineList"),
   historyConditionView: document.querySelector("#historyConditionView")
 };
@@ -84,9 +79,7 @@ startApp();
 async function startApp() {
   elements.todayText.textContent = formatDateForView(today);
   elements.historyDate.value = today;
-  elements.historyWeekDate.value = today;
-  elements.historyMonth.value = today.slice(0, 7);
-  updateHistoryControls();
+  updateHistoryRangeLabel();
   setDefaultTakenTime();
   updateRangeNumbers();
   bindEvents();
@@ -108,15 +101,13 @@ function bindEvents() {
   elements.conditionForm.addEventListener("submit", saveConditionRecord);
   elements.timeSlot.addEventListener("change", toggleCustomSlot);
   elements.cancelEditButton.addEventListener("click", resetMedicineForm);
-  elements.historyDate.addEventListener("change", renderHistory);
-  elements.historyWeekDate.addEventListener("change", function () {
-    updateWeekRangeLabel();
+  elements.historyDate.addEventListener("change", function () {
+    updateHistoryRangeLabel();
     renderHistory();
   });
-  elements.historyMonth.addEventListener("change", renderHistory);
   elements.historyModeInputs.forEach(function (input) {
     input.addEventListener("change", function () {
-      updateHistoryControls();
+      updateHistoryRangeLabel();
       renderHistory();
     });
   });
@@ -695,14 +686,6 @@ function updateRangeNumbers() {
   elements.overallConditionValue.textContent = elements.overallCondition.value;
 }
 
-function updateHistoryControls() {
-  const mode = getSelectedHistoryMode();
-  elements.historyDayField.classList.toggle("hidden", mode !== "day");
-  elements.historyWeekField.classList.toggle("hidden", mode !== "week");
-  elements.historyMonthField.classList.toggle("hidden", mode !== "month");
-  updateWeekRangeLabel();
-}
-
 function getSelectedHistoryMode() {
   const selected = Array.from(elements.historyModeInputs).find(function (input) {
     return input.checked;
@@ -712,9 +695,10 @@ function getSelectedHistoryMode() {
 
 function getHistoryPeriod() {
   const mode = getSelectedHistoryMode();
+  const baseDate = elements.historyDate.value || today;
 
   if (mode === "month") {
-    const monthValue = elements.historyMonth.value || today.slice(0, 7);
+    const monthValue = baseDate.slice(0, 7);
     return {
       startDate: `${monthValue}-01`,
       endDate: getMonthEndDate(monthValue),
@@ -724,7 +708,7 @@ function getHistoryPeriod() {
   }
 
   if (mode === "week") {
-    const startDate = getWeekStartFromDate(elements.historyWeekDate.value || today);
+    const startDate = getWeekStartFromDate(baseDate);
     return {
       startDate: startDate,
       endDate: addDays(startDate, 6),
@@ -733,10 +717,9 @@ function getHistoryPeriod() {
     };
   }
 
-  const selectedDate = elements.historyDate.value || today;
   return {
-    startDate: selectedDate,
-    endDate: selectedDate,
+    startDate: baseDate,
+    endDate: baseDate,
     emptyMedicineMessage: "선택한 날짜의 복용 기록이 없습니다.",
     emptyConditionMessage: "선택한 날짜의 컨디션 기록이 없습니다."
   };
@@ -760,9 +743,10 @@ function getMonthEndDate(monthValue) {
   return dateToString(date);
 }
 
-// Week mode uses a plain date picker (type="date" is supported everywhere,
-// including iOS Safari where type="week" is not) and derives the ISO week —
-// Monday through Sunday — that contains the chosen day.
+// All three modes share one date picker: type="date" is supported everywhere
+// (including iOS Safari, unlike type="week"/type="month"). The chosen day is
+// interpreted per mode — the day itself, the ISO week (Mon–Sun) around it, or
+// its calendar month.
 function getWeekStartFromDate(dateText) {
   const date = new Date(`${dateText}T00:00:00`);
   const day = date.getDay() || 7; // Mon=1 … Sun=7
@@ -770,13 +754,29 @@ function getWeekStartFromDate(dateText) {
   return dateToString(date);
 }
 
-function updateWeekRangeLabel() {
-  const startDate = getWeekStartFromDate(elements.historyWeekDate.value || today);
-  const endDate = addDays(startDate, 6);
-  elements.historyWeekRange.textContent = `${formatWeekBound(startDate)} ~ ${formatWeekBound(endDate)}`;
+// Shows the span the chosen date resolves to, so it's clear that picking one
+// day in week/month mode selects the whole period. Day mode needs no hint.
+function updateHistoryRangeLabel() {
+  const mode = getSelectedHistoryMode();
+  const baseDate = elements.historyDate.value || today;
+
+  if (mode === "week") {
+    const startDate = getWeekStartFromDate(baseDate);
+    const endDate = addDays(startDate, 6);
+    elements.historyRangeLabel.textContent = `${formatDayBound(startDate)} ~ ${formatDayBound(endDate)}`;
+    return;
+  }
+
+  if (mode === "month") {
+    const date = new Date(`${baseDate}T00:00:00`);
+    elements.historyRangeLabel.textContent = date.toLocaleDateString("ko-KR", { year: "numeric", month: "long" });
+    return;
+  }
+
+  elements.historyRangeLabel.textContent = "";
 }
 
-function formatWeekBound(dateText) {
+function formatDayBound(dateText) {
   const date = new Date(`${dateText}T00:00:00`);
   return date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
 }
