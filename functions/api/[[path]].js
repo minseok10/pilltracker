@@ -7,8 +7,6 @@ const AUTH_RATE_LIMIT_MAX = 10;
 const ID_CHECK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const ID_CHECK_RATE_LIMIT_MAX = 60;
 
-const rateLimits = new Map();
-
 export async function onRequest(context) {
   const requestUrl = new URL(context.request.url);
 
@@ -32,7 +30,7 @@ async function handleApi(request, db, requestUrl) {
   const pathname = requestUrl.pathname;
 
   if (request.method === "GET" && pathname === "/api/auth/check-id") {
-    if (!consumeRateLimit(`id-check:${getClientIp(request)}`, ID_CHECK_RATE_LIMIT_MAX, ID_CHECK_RATE_LIMIT_WINDOW_MS)) {
+    if (!await consumeRateLimit(db, `id-check:${getClientIp(request)}`, ID_CHECK_RATE_LIMIT_MAX, ID_CHECK_RATE_LIMIT_WINDOW_MS)) {
       return sendJson(429, { error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." });
     }
 
@@ -50,7 +48,7 @@ async function handleApi(request, db, requestUrl) {
   }
 
   if (request.method === "POST" && pathname === "/api/auth/register") {
-    if (!consumeRateLimit(`auth:${getClientIp(request)}`, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)) {
+    if (!await consumeRateLimit(db, `auth:${getClientIp(request)}`, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)) {
       return sendJson(429, { error: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요." });
     }
 
@@ -108,7 +106,7 @@ async function handleApi(request, db, requestUrl) {
   }
 
   if (request.method === "POST" && pathname === "/api/auth/login") {
-    if (!consumeRateLimit(`auth:${getClientIp(request)}`, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)) {
+    if (!await consumeRateLimit(db, `auth:${getClientIp(request)}`, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)) {
       return sendJson(429, { error: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요." });
     }
 
@@ -147,7 +145,7 @@ async function handleApi(request, db, requestUrl) {
   }
 
   if (request.method === "POST" && pathname === "/api/auth/verify-password") {
-    if (!consumeRateLimit(`auth:${getClientIp(request)}`, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)) {
+    if (!await consumeRateLimit(db, `auth:${getClientIp(request)}`, AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)) {
       return sendJson(429, { error: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요." });
     }
 
@@ -480,26 +478,28 @@ function isSecureRequest(request) {
   return new URL(request.url).protocol === "https:";
 }
 
-function consumeRateLimit(key, maxRequests, windowMs) {
+// Rate limits are stored in D1 rather than an in-memory Map: Pages Functions run
+// across many short-lived, non-shared isolates, so an in-process Map never
+// accumulates enough hits to trip a limit. D1 gives every isolate a shared,
+// durable counter. Counts are best-effort — a rare concurrent first-hit race can
+// undercount by one, which is acceptable for abuse throttling.
+async function consumeRateLimit(db, key, maxRequests, windowMs) {
   const now = Date.now();
-  const current = rateLimits.get(key);
+  const current = await db.prepare("SELECT count, reset_at FROM rate_limits WHERE key = ?")
+    .bind(key)
+    .first();
 
-  if (!current || current.resetAt <= now) {
-    rateLimits.set(key, { count: 1, resetAt: now + windowMs });
-    cleanupRateLimits(now);
+  if (!current || Number(current.reset_at) <= now) {
+    await db.prepare(
+      "INSERT INTO rate_limits (key, count, reset_at) VALUES (?, 1, ?) " +
+      "ON CONFLICT(key) DO UPDATE SET count = 1, reset_at = excluded.reset_at"
+    ).bind(key, now + windowMs).run();
+    await db.prepare("DELETE FROM rate_limits WHERE reset_at <= ?").bind(now).run();
     return true;
   }
 
-  current.count += 1;
-  return current.count <= maxRequests;
-}
-
-function cleanupRateLimits(now) {
-  for (const [key, value] of rateLimits) {
-    if (value.resetAt <= now) {
-      rateLimits.delete(key);
-    }
-  }
+  await db.prepare("UPDATE rate_limits SET count = count + 1 WHERE key = ?").bind(key).run();
+  return Number(current.count) + 1 <= maxRequests;
 }
 
 function getClientIp(request) {

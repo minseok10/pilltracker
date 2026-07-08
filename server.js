@@ -13,6 +13,11 @@ const AUTH_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_RATE_LIMIT_MAX = process.env.NODE_ENV === "test" ? 100 : 10;
 const ID_CHECK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const ID_CHECK_RATE_LIMIT_MAX = 60;
+// Only honor X-Forwarded-* headers when explicitly deployed behind a trusted
+// reverse proxy. Otherwise a client can spoof these headers to forge its origin
+// protocol (downgrading the Secure cookie flag / bypassing the origin check) or
+// its source IP (evading the per-IP auth rate limit).
+const TRUST_PROXY = /^(1|true|yes|on)$/i.test(String(process.env.TRUST_PROXY || "").trim());
 const DB_FILE = process.env.DATA_FILE
   ? path.resolve(__dirname, process.env.DATA_FILE)
   : path.join(__dirname, "data", "db.json");
@@ -514,15 +519,20 @@ function isAllowedOrigin(req) {
   return true;
 }
 
+function forwardedProto(req) {
+  if (!TRUST_PROXY) {
+    return "";
+  }
+  return String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+}
+
 function getExpectedOrigin(req) {
-  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
-  const protocol = forwardedProto || (req.socket.encrypted ? "https" : "http");
+  const protocol = forwardedProto(req) || (req.socket.encrypted ? "https" : "http");
   return `${protocol}://${req.headers.host || `localhost:${PORT}`}`;
 }
 
 function isSecureRequest(req) {
-  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
-  return forwardedProto === "https" || Boolean(req.socket.encrypted);
+  return forwardedProto(req) === "https" || Boolean(req.socket.encrypted);
 }
 
 function consumeRateLimit(key, maxRequests, windowMs) {
@@ -548,8 +558,13 @@ function cleanupRateLimits(now) {
 }
 
 function getClientIp(req) {
-  const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  return forwardedFor || req.socket.remoteAddress || "unknown";
+  if (TRUST_PROXY) {
+    const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    if (forwardedFor) {
+      return forwardedFor;
+    }
+  }
+  return req.socket.remoteAddress || "unknown";
 }
 
 function applySecurityHeaders(res) {

@@ -100,6 +100,8 @@ Cloudflare API Token은 Pages edit 권한과 D1 edit 권한이 있는 토큰을 
 - `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` 보안 헤더 적용
 - 선택형 클라이언트 측 암호화: 보안 설정에서 켜면 기록은 로그인 비밀번호로 브라우저에서 AES-GCM 암호화된 뒤 서버에 저장됩니다.
 
+기본적으로 Node 서버는 클라이언트가 보낸 `X-Forwarded-For` / `X-Forwarded-Proto` 헤더를 신뢰하지 않습니다. 이 헤더를 위조해 IP별 rate limit을 우회하거나 요청 프로토콜(쿠키 `Secure` 적용 여부·`Origin` 검사)을 조작하는 것을 막기 위함입니다. TLS를 종료하는 신뢰할 수 있는 리버스 프록시 뒤에서 직접 호스팅하는 경우에만 `TRUST_PROXY=true` 환경변수를 설정해 이 헤더를 신뢰하도록 하세요. Cloudflare Pages 배포 경로는 이 설정과 무관합니다(요청 URL에서 프로토콜을 확인하고, 클라이언트 IP는 `CF-Connecting-IP`를 사용).
+
 로그인 비밀번호는 원문으로 저장되지 않으며, 서버 저장 암호화의 복호화 키도 서버에 저장되지 않습니다. 따라서 암호화를 활성화하면 서버 관리자도 저장된 기록의 내용을 볼 수 없습니다. 로그인 비밀번호를 잃어버리면 서버 운영자도 암호화된 기록을 복구할 수 없습니다.
 
 ## 휴대폰에서 테스트하는 방법

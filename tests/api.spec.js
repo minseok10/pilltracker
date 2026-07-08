@@ -49,6 +49,26 @@ test("ID 중복은 대소문자를 구분하지 않고 막는다", async ({ requ
   }));
 });
 
+test("신뢰하지 않는 프록시 환경에서는 위조된 X-Forwarded-Proto 를 무시한다", async ({ request }) => {
+  // TRUST_PROXY 가 꺼진 기본 환경(테스트 서버)에서는 클라이언트가 보낸
+  // X-Forwarded-Proto 를 신뢰하면 안 된다. 신뢰할 경우 기대 origin 이 https 로
+  // 바뀌어 정상 http 요청이 403 으로 거부된다. 무시하면 200 이어야 한다.
+  const username = uniqueId("proxy");
+  const auth = await register(request, username);
+
+  const response = await request.fetch("/api/data", {
+    method: "PUT",
+    headers: {
+      Origin: "http://localhost:3100",
+      "X-Forwarded-Proto": "https",
+      "X-CSRF-Token": auth.csrfToken
+    },
+    data: { medicines: {}, conditions: {} }
+  });
+
+  expect(response.status()).toBe(200);
+});
+
 test("거부된 데이터 저장 요청은 기존 기록을 변경하지 않는다", async ({ request }) => {
   const username = uniqueId("guard");
   const auth = await register(request, username);
