@@ -481,25 +481,34 @@ function isSecureRequest(request) {
 // Rate limits are stored in D1 rather than an in-memory Map: Pages Functions run
 // across many short-lived, non-shared isolates, so an in-process Map never
 // accumulates enough hits to trip a limit. D1 gives every isolate a shared,
-// durable counter. Counts are best-effort — a rare concurrent first-hit race can
-// undercount by one, which is acceptable for abuse throttling.
+// durable counter.
+//
+// The increment and the limit decision happen in a single atomic statement: a
+// separate SELECT-then-UPDATE would let a concurrent burst on the same key all
+// read the same pre-increment count and slip through. The upsert either inserts
+// a fresh counter (count=1), resets it if the fixed window has elapsed, or
+// increments it, and RETURNs the resulting count for the check. SQLite serializes
+// writes, so each concurrent request gets its own distinct post-increment value.
 async function consumeRateLimit(db, key, maxRequests, windowMs) {
   const now = Date.now();
-  const current = await db.prepare("SELECT count, reset_at FROM rate_limits WHERE key = ?")
-    .bind(key)
-    .first();
+  const resetAt = now + windowMs;
 
-  if (!current || Number(current.reset_at) <= now) {
-    await db.prepare(
-      "INSERT INTO rate_limits (key, count, reset_at) VALUES (?, 1, ?) " +
-      "ON CONFLICT(key) DO UPDATE SET count = 1, reset_at = excluded.reset_at"
-    ).bind(key, now + windowMs).run();
+  const row = await db.prepare(
+    "INSERT INTO rate_limits (key, count, reset_at) VALUES (?, 1, ?) " +
+    "ON CONFLICT(key) DO UPDATE SET " +
+    "count = CASE WHEN rate_limits.reset_at <= ? THEN 1 ELSE rate_limits.count + 1 END, " +
+    "reset_at = CASE WHEN rate_limits.reset_at <= ? THEN ? ELSE rate_limits.reset_at END " +
+    "RETURNING count"
+  ).bind(key, resetAt, now, now, resetAt).first();
+
+  // Opportunistically purge expired rows so the table doesn't grow unbounded
+  // from one-off keys. Sampled rather than run every request to avoid a second
+  // round-trip on the hot path; it never affects the decision above.
+  if (Math.random() < 0.02) {
     await db.prepare("DELETE FROM rate_limits WHERE reset_at <= ?").bind(now).run();
-    return true;
   }
 
-  await db.prepare("UPDATE rate_limits SET count = count + 1 WHERE key = ?").bind(key).run();
-  return Number(current.count) + 1 <= maxRequests;
+  return Number(row.count) <= maxRequests;
 }
 
 function getClientIp(request) {
