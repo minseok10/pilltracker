@@ -72,7 +72,8 @@ const elements = {
   historyWeekField: document.querySelector("#historyWeekField"),
   historyMonthField: document.querySelector("#historyMonthField"),
   historyDate: document.querySelector("#historyDate"),
-  historyWeek: document.querySelector("#historyWeek"),
+  historyWeekDate: document.querySelector("#historyWeekDate"),
+  historyWeekRange: document.querySelector("#historyWeekRange"),
   historyMonth: document.querySelector("#historyMonth"),
   historyMedicineList: document.querySelector("#historyMedicineList"),
   historyConditionView: document.querySelector("#historyConditionView")
@@ -83,7 +84,7 @@ startApp();
 async function startApp() {
   elements.todayText.textContent = formatDateForView(today);
   elements.historyDate.value = today;
-  elements.historyWeek.value = getWeekValue(today);
+  elements.historyWeekDate.value = today;
   elements.historyMonth.value = today.slice(0, 7);
   updateHistoryControls();
   setDefaultTakenTime();
@@ -108,7 +109,10 @@ function bindEvents() {
   elements.timeSlot.addEventListener("change", toggleCustomSlot);
   elements.cancelEditButton.addEventListener("click", resetMedicineForm);
   elements.historyDate.addEventListener("change", renderHistory);
-  elements.historyWeek.addEventListener("change", renderHistory);
+  elements.historyWeekDate.addEventListener("change", function () {
+    updateWeekRangeLabel();
+    renderHistory();
+  });
   elements.historyMonth.addEventListener("change", renderHistory);
   elements.historyModeInputs.forEach(function (input) {
     input.addEventListener("change", function () {
@@ -696,6 +700,7 @@ function updateHistoryControls() {
   elements.historyDayField.classList.toggle("hidden", mode !== "day");
   elements.historyWeekField.classList.toggle("hidden", mode !== "week");
   elements.historyMonthField.classList.toggle("hidden", mode !== "month");
+  updateWeekRangeLabel();
 }
 
 function getSelectedHistoryMode() {
@@ -719,8 +724,7 @@ function getHistoryPeriod() {
   }
 
   if (mode === "week") {
-    const weekValue = elements.historyWeek.value || getWeekValue(today);
-    const startDate = getWeekStartDate(weekValue);
+    const startDate = getWeekStartFromDate(elements.historyWeekDate.value || today);
     return {
       startDate: startDate,
       endDate: addDays(startDate, 6),
@@ -756,28 +760,25 @@ function getMonthEndDate(monthValue) {
   return dateToString(date);
 }
 
-function getWeekValue(dateText) {
+// Week mode uses a plain date picker (type="date" is supported everywhere,
+// including iOS Safari where type="week" is not) and derives the ISO week —
+// Monday through Sunday — that contains the chosen day.
+function getWeekStartFromDate(dateText) {
   const date = new Date(`${dateText}T00:00:00`);
-  const day = date.getDay() || 7;
-  date.setDate(date.getDate() + 4 - day);
-  const yearStart = new Date(date.getFullYear(), 0, 1);
-  const week = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
-  return `${date.getFullYear()}-W${String(week).padStart(2, "0")}`;
+  const day = date.getDay() || 7; // Mon=1 … Sun=7
+  date.setDate(date.getDate() - (day - 1));
+  return dateToString(date);
 }
 
-function getWeekStartDate(weekValue) {
-  const match = /^(\d{4})-W(\d{2})$/.exec(weekValue);
-  if (!match) {
-    return today;
-  }
+function updateWeekRangeLabel() {
+  const startDate = getWeekStartFromDate(elements.historyWeekDate.value || today);
+  const endDate = addDays(startDate, 6);
+  elements.historyWeekRange.textContent = `${formatWeekBound(startDate)} ~ ${formatWeekBound(endDate)}`;
+}
 
-  const year = Number(match[1]);
-  const week = Number(match[2]);
-  const januaryFourth = new Date(year, 0, 4);
-  const januaryFourthDay = januaryFourth.getDay() || 7;
-  const monday = new Date(januaryFourth);
-  monday.setDate(januaryFourth.getDate() - januaryFourthDay + 1 + ((week - 1) * 7));
-  return dateToString(monday);
+function formatWeekBound(dateText) {
+  const date = new Date(`${dateText}T00:00:00`);
+  return date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
 }
 
 function addDays(dateText, days) {

@@ -411,6 +411,13 @@ button:disabled {
   margin-top: 0;
 }
 
+.history-week-range {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 .history-day {
   padding-top: 12px;
   border-top: 1px solid var(--line);
@@ -425,12 +432,6 @@ button:disabled {
   margin: 0 0 10px;
   color: var(--primary-dark);
   font-size: 0.98rem;
-}
-
-.history-day .condition-view {
-  padding: 0;
-  border: 0;
-  background: transparent;
 }
 
 .condition-view {

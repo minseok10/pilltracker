@@ -144,6 +144,74 @@ test("월 단위로 이전 복용 기록을 모아 볼 수 있다", async ({ pag
   await expect(page.locator("#historyConditionView")).toContainText("오월 컨디션");
 });
 
+test("주 단위는 고른 날짜가 속한 월~일만 모아 보여준다", async ({ page }) => {
+  const username = uniqueId("week");
+  await signUp(page, username, "pass1234");
+
+  const auth = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/me");
+    return response.json();
+  });
+
+  // 2026-05-20은 수요일 → 그 주는 월(2026-05-18)~일(2026-05-24).
+  // 경계 밖 05-17(전 일요일)·05-25(다음 월요일)은 제외되어야 한다.
+  await page.evaluate(async ({ csrfToken }) => {
+    const medicine = (id, name, date) => ({
+      id,
+      date,
+      name,
+      timeSlot: "아침",
+      isTaken: true,
+      takenTime: "08:00",
+      memo: ""
+    });
+
+    const response = await fetch("/api/data", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken
+      },
+      body: JSON.stringify({
+        medicines: {
+          "2026-05-17": [medicine("prev", "지난주일요약", "2026-05-17")],
+          "2026-05-18": [medicine("mon", "이번주월요약", "2026-05-18")],
+          "2026-05-24": [medicine("sun", "이번주일요약", "2026-05-24")],
+          "2026-05-25": [medicine("next", "다음주월요약", "2026-05-25")]
+        },
+        conditions: {
+          "2026-05-20": {
+            sleepiness: "2",
+            focus: "4",
+            overallCondition: "3",
+            sleepHours: "7",
+            hadCaffeine: false,
+            memo: "수요일 컨디션"
+          }
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("테스트 데이터를 저장하지 못했습니다.");
+    }
+  }, { csrfToken: auth.csrfToken });
+
+  await page.reload();
+  await expect(page.locator("#appMain")).toBeVisible();
+
+  await page.check('input[name="historyMode"][value="week"]');
+  await page.fill("#historyWeekDate", "2026-05-20");
+
+  await expect(page.locator("#historyWeekRange")).toContainText("5월 18일");
+  await expect(page.locator("#historyWeekRange")).toContainText("5월 24일");
+  await expect(page.locator("#historyMedicineList")).toContainText("이번주월요약");
+  await expect(page.locator("#historyMedicineList")).toContainText("이번주일요약");
+  await expect(page.locator("#historyMedicineList")).not.toContainText("지난주일요약");
+  await expect(page.locator("#historyMedicineList")).not.toContainText("다음주월요약");
+  await expect(page.locator("#historyConditionView")).toContainText("수요일 컨디션");
+});
+
 test("로그아웃 후 같은 계정으로 다시 로그인할 수 있다", async ({ page }) => {
   const username = uniqueId("login");
   await signUp(page, username, "pass1234");
