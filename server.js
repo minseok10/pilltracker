@@ -285,6 +285,9 @@ function serveStatic(res, pathname) {
   };
 
   applySecurityHeaders(res);
+  // Revalidate on every load so a redeployed HTML/CSS/JS is never served stale
+  // from the browser cache (Safari caches aggressively without this).
+  res.setHeader("Cache-Control", "no-cache");
   res.writeHead(200, { "Content-Type": contentTypes[ext] || "text/plain; charset=utf-8" });
   fs.createReadStream(filePath).pipe(res);
 }

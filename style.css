@@ -152,13 +152,25 @@ textarea {
   resize: vertical;
 }
 
-/* iOS Safari gives date/time inputs an intrinsic width and internal margins on
-   ::-webkit-date-and-time-value, which pushes the control past its container.
-   Constrain the width and zero the inner margin so the picker stays in the card. */
+/* iOS Safari gives date/time inputs a large intrinsic width that ignores our
+   width/max-width, so they spill past their container. Turning off the native
+   appearance makes them size like a normal text field (respecting width and
+   box-sizing). This does NOT disable the picker — iOS still opens its native
+   date/time wheel on tap; only the field's own box rendering changes. The
+   desktop calendar/clock button is restored right below. */
 input[type="date"],
 input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
+}
+
+/* Keep the click-to-open picker button on desktop after appearance:none. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  opacity: 1;
 }
 
 input[type="date"]::-webkit-date-and-time-value,
@@ -363,7 +375,15 @@ button:disabled {
 
 .history-controls {
   display: grid;
+  /* Cap the single column at the container width. Without minmax(0, ...) the
+     grid track grows to the date input's intrinsic (min-content) width, which
+     iOS Safari makes large enough to push the control past the card edge. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
+}
+
+.history-picker-field {
+  min-width: 0;
 }
 
 .segmented-field {
