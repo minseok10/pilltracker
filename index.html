@@ -167,8 +167,40 @@
     <section class="card">
       <h2>이전 기록 보기</h2>
 
-      <label for="historyDate">날짜 선택</label>
-      <input id="historyDate" type="date">
+      <div class="history-controls">
+        <fieldset class="segmented-field">
+          <legend>보기 단위</legend>
+          <div class="segmented-control" role="radiogroup" aria-label="이전 기록 보기 단위">
+            <label>
+              <input type="radio" name="historyMode" value="day" checked>
+              <span>일</span>
+            </label>
+            <label>
+              <input type="radio" name="historyMode" value="week">
+              <span>주</span>
+            </label>
+            <label>
+              <input type="radio" name="historyMode" value="month">
+              <span>월</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div id="historyDayField" class="history-picker-field">
+          <label for="historyDate">날짜 선택</label>
+          <input id="historyDate" type="date">
+        </div>
+
+        <div id="historyWeekField" class="history-picker-field hidden">
+          <label for="historyWeek">주 선택</label>
+          <input id="historyWeek" type="week">
+        </div>
+
+        <div id="historyMonthField" class="history-picker-field hidden">
+          <label for="historyMonth">월 선택</label>
+          <input id="historyMonth" type="month">
+        </div>
+      </div>
 
       <div class="history-block">
         <h3>복용 기록</h3>

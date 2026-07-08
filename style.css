@@ -346,6 +346,93 @@ button:disabled {
   margin-top: 18px;
 }
 
+.history-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.segmented-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.segmented-field legend {
+  margin: 0 0 7px;
+  color: #41483f;
+  font-weight: 700;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  min-height: 48px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf9;
+}
+
+.segmented-control label {
+  position: relative;
+  min-width: 0;
+  margin: 0;
+}
+
+.segmented-control input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segmented-control span {
+  display: grid;
+  place-items: center;
+  min-height: 38px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.segmented-control input:checked + span {
+  background: var(--primary);
+  color: white;
+}
+
+.segmented-control input:focus + span {
+  box-shadow: 0 0 0 3px rgba(52, 120, 111, 0.14);
+}
+
+.history-picker-field label {
+  margin-top: 0;
+}
+
+.history-day {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.history-day:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.history-day h4 {
+  margin: 0 0 10px;
+  color: var(--primary-dark);
+  font-size: 0.98rem;
+}
+
+.history-day .condition-view {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .condition-view {
   border: 1px solid var(--line);
   border-radius: 8px;

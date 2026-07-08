@@ -61,6 +61,89 @@ test("가입 후 복용 기록과 컨디션 기록을 저장하고 조회한다"
   await expect(page.locator("#historyConditionView")).toContainText("7.5시간");
 });
 
+test("월 단위로 이전 복용 기록을 모아 볼 수 있다", async ({ page }) => {
+  const username = uniqueId("month");
+  await signUp(page, username, "pass1234");
+
+  const auth = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/me");
+    return response.json();
+  });
+
+  await page.evaluate(async ({ csrfToken }) => {
+    const response = await fetch("/api/data", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken
+      },
+      body: JSON.stringify({
+        medicines: {
+          "2026-05-05": [
+            {
+              id: "may-early",
+              date: "2026-05-05",
+              name: "오월초약",
+              timeSlot: "아침",
+              isTaken: true,
+              takenTime: "08:00",
+              memo: ""
+            }
+          ],
+          "2026-05-20": [
+            {
+              id: "may-late",
+              date: "2026-05-20",
+              name: "오월말약",
+              timeSlot: "저녁",
+              isTaken: false,
+              takenTime: "20:00",
+              memo: "월 보기 메모"
+            }
+          ],
+          "2026-06-01": [
+            {
+              id: "june",
+              date: "2026-06-01",
+              name: "유월약",
+              timeSlot: "점심",
+              isTaken: true,
+              takenTime: "12:00",
+              memo: ""
+            }
+          ]
+        },
+        conditions: {
+          "2026-05-20": {
+            sleepiness: "2",
+            focus: "4",
+            overallCondition: "3",
+            sleepHours: "7",
+            hadCaffeine: false,
+            memo: "오월 컨디션"
+          }
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("테스트 데이터를 저장하지 못했습니다.");
+    }
+  }, { csrfToken: auth.csrfToken });
+
+  await page.reload();
+  await expect(page.locator("#appMain")).toBeVisible();
+
+  await page.check('input[name="historyMode"][value="month"]');
+  await page.fill("#historyMonth", "2026-05");
+
+  await expect(page.locator("#historyMedicineList")).toContainText("오월초약");
+  await expect(page.locator("#historyMedicineList")).toContainText("오월말약");
+  await expect(page.locator("#historyMedicineList")).toContainText("월 보기 메모");
+  await expect(page.locator("#historyMedicineList")).not.toContainText("유월약");
+  await expect(page.locator("#historyConditionView")).toContainText("오월 컨디션");
+});
+
 test("로그아웃 후 같은 계정으로 다시 로그인할 수 있다", async ({ page }) => {
   const username = uniqueId("login");
   await signUp(page, username, "pass1234");

@@ -67,7 +67,13 @@ const elements = {
   hadCaffeine: document.querySelector("#hadCaffeine"),
   conditionMemo: document.querySelector("#conditionMemo"),
   todayMedicineList: document.querySelector("#todayMedicineList"),
+  historyModeInputs: document.querySelectorAll('input[name="historyMode"]'),
+  historyDayField: document.querySelector("#historyDayField"),
+  historyWeekField: document.querySelector("#historyWeekField"),
+  historyMonthField: document.querySelector("#historyMonthField"),
   historyDate: document.querySelector("#historyDate"),
+  historyWeek: document.querySelector("#historyWeek"),
+  historyMonth: document.querySelector("#historyMonth"),
   historyMedicineList: document.querySelector("#historyMedicineList"),
   historyConditionView: document.querySelector("#historyConditionView")
 };
@@ -77,6 +83,9 @@ startApp();
 async function startApp() {
   elements.todayText.textContent = formatDateForView(today);
   elements.historyDate.value = today;
+  elements.historyWeek.value = getWeekValue(today);
+  elements.historyMonth.value = today.slice(0, 7);
+  updateHistoryControls();
   setDefaultTakenTime();
   updateRangeNumbers();
   bindEvents();
@@ -99,6 +108,14 @@ function bindEvents() {
   elements.timeSlot.addEventListener("change", toggleCustomSlot);
   elements.cancelEditButton.addEventListener("click", resetMedicineForm);
   elements.historyDate.addEventListener("change", renderHistory);
+  elements.historyWeek.addEventListener("change", renderHistory);
+  elements.historyMonth.addEventListener("change", renderHistory);
+  elements.historyModeInputs.forEach(function (input) {
+    input.addEventListener("change", function () {
+      updateHistoryControls();
+      renderHistory();
+    });
+  });
   elements.todayMedicineList.addEventListener("click", handleMedicineListClick);
 
   [elements.sleepiness, elements.focus, elements.overallCondition].forEach(function (range) {
@@ -569,19 +586,51 @@ function renderTodayMedicines() {
 
 function renderHistory() {
   const data = loadData();
-  const selectedDate = elements.historyDate.value || today;
-  const records = data.medicines[selectedDate] || [];
-  const condition = data.conditions[selectedDate];
+  const period = getHistoryPeriod();
+  const medicineDates = getDateKeysInRange(data.medicines, period.startDate, period.endDate).filter(function (date) {
+    return (data.medicines[date] || []).length > 0;
+  });
+  const conditionDates = getDateKeysInRange(data.conditions, period.startDate, period.endDate).filter(function (date) {
+    return Boolean(data.conditions[date]);
+  });
 
-  if (records.length === 0) {
-    elements.historyMedicineList.innerHTML = '<p class="muted">선택한 날짜의 복용 기록이 없습니다.</p>';
+  if (medicineDates.length === 0) {
+    elements.historyMedicineList.innerHTML = `<p class="muted">${period.emptyMedicineMessage}</p>`;
   } else {
-    elements.historyMedicineList.innerHTML = records.map(function (record) {
-      return createMedicineRecordHtml(record, false);
+    elements.historyMedicineList.innerHTML = medicineDates.map(function (date) {
+      return createHistoryMedicineGroupHtml(date, data.medicines[date]);
     }).join("");
   }
 
-  elements.historyConditionView.innerHTML = createConditionHtml(condition);
+  if (conditionDates.length === 0) {
+    elements.historyConditionView.innerHTML = `<p class="muted">${period.emptyConditionMessage}</p>`;
+  } else {
+    elements.historyConditionView.innerHTML = conditionDates.map(function (date) {
+      return createHistoryConditionGroupHtml(date, data.conditions[date]);
+    }).join("");
+  }
+}
+
+function createHistoryMedicineGroupHtml(date, records) {
+  return `
+    <section class="history-day">
+      <h4>${formatDateForView(date)}</h4>
+      <div class="record-list">
+        ${records.map(function (record) {
+          return createMedicineRecordHtml(record, false);
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function createHistoryConditionGroupHtml(date, condition) {
+  return `
+    <section class="history-day">
+      <h4>${formatDateForView(date)}</h4>
+      ${createConditionHtml(condition)}
+    </section>
+  `;
 }
 
 function createMedicineRecordHtml(record, showActions) {
@@ -640,6 +689,108 @@ function updateRangeNumbers() {
   elements.sleepinessValue.textContent = elements.sleepiness.value;
   elements.focusValue.textContent = elements.focus.value;
   elements.overallConditionValue.textContent = elements.overallCondition.value;
+}
+
+function updateHistoryControls() {
+  const mode = getSelectedHistoryMode();
+  elements.historyDayField.classList.toggle("hidden", mode !== "day");
+  elements.historyWeekField.classList.toggle("hidden", mode !== "week");
+  elements.historyMonthField.classList.toggle("hidden", mode !== "month");
+}
+
+function getSelectedHistoryMode() {
+  const selected = Array.from(elements.historyModeInputs).find(function (input) {
+    return input.checked;
+  });
+  return selected ? selected.value : "day";
+}
+
+function getHistoryPeriod() {
+  const mode = getSelectedHistoryMode();
+
+  if (mode === "month") {
+    const monthValue = elements.historyMonth.value || today.slice(0, 7);
+    return {
+      startDate: `${monthValue}-01`,
+      endDate: getMonthEndDate(monthValue),
+      emptyMedicineMessage: "선택한 달의 복용 기록이 없습니다.",
+      emptyConditionMessage: "선택한 달의 컨디션 기록이 없습니다."
+    };
+  }
+
+  if (mode === "week") {
+    const weekValue = elements.historyWeek.value || getWeekValue(today);
+    const startDate = getWeekStartDate(weekValue);
+    return {
+      startDate: startDate,
+      endDate: addDays(startDate, 6),
+      emptyMedicineMessage: "선택한 주의 복용 기록이 없습니다.",
+      emptyConditionMessage: "선택한 주의 컨디션 기록이 없습니다."
+    };
+  }
+
+  const selectedDate = elements.historyDate.value || today;
+  return {
+    startDate: selectedDate,
+    endDate: selectedDate,
+    emptyMedicineMessage: "선택한 날짜의 복용 기록이 없습니다.",
+    emptyConditionMessage: "선택한 날짜의 컨디션 기록이 없습니다."
+  };
+}
+
+function getDateKeysInRange(source, startDate, endDate) {
+  return Object.keys(source || {}).filter(function (date) {
+    return isDateKey(date) && date >= startDate && date <= endDate;
+  }).sort();
+}
+
+function isDateKey(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function getMonthEndDate(monthValue) {
+  const parts = monthValue.split("-");
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const date = new Date(year, month, 0);
+  return dateToString(date);
+}
+
+function getWeekValue(dateText) {
+  const date = new Date(`${dateText}T00:00:00`);
+  const day = date.getDay() || 7;
+  date.setDate(date.getDate() + 4 - day);
+  const yearStart = new Date(date.getFullYear(), 0, 1);
+  const week = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return `${date.getFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+function getWeekStartDate(weekValue) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(weekValue);
+  if (!match) {
+    return today;
+  }
+
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const januaryFourth = new Date(year, 0, 4);
+  const januaryFourthDay = januaryFourth.getDay() || 7;
+  const monday = new Date(januaryFourth);
+  monday.setDate(januaryFourth.getDate() - januaryFourthDay + 1 + ((week - 1) * 7));
+  return dateToString(monday);
+}
+
+function addDays(dateText, days) {
+  const date = new Date(`${dateText}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return dateToString(date);
+}
+
+function dateToString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function setDefaultTakenTime() {
