@@ -43,6 +43,11 @@ const server = http.createServer(async function (req, res) {
 
     serveStatic(res, requestUrl.pathname);
   } catch (error) {
+    if (error.statusCode === 413) {
+      sendJson(res, 413, { error: error.message });
+      return;
+    }
+
     console.error(error);
     sendJson(res, 500, { error: "서버 오류가 발생했습니다." });
   }
@@ -299,8 +304,12 @@ function readJsonBody(req) {
     req.on("data", function (chunk) {
       body += chunk;
       if (body.length > 1024 * 1024) {
-        reject(new Error("요청 본문이 너무 큽니다."));
-        req.destroy();
+        const error = new Error("요청 본문이 너무 큽니다.");
+        error.statusCode = 413;
+        reject(error);
+        // pause (not destroy) so the 413 response can still reach the client;
+        // Node closes the connection itself when the body was never drained.
+        req.pause();
       }
     });
 

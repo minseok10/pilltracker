@@ -6,6 +6,14 @@ const AUTH_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_RATE_LIMIT_MAX = 10;
 const ID_CHECK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const ID_CHECK_RATE_LIMIT_MAX = 60;
+const MAX_BODY_BYTES = 1024 * 1024;
+
+class ApiError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
 
 export async function onRequest(context) {
   const requestUrl = new URL(context.request.url);
@@ -21,6 +29,10 @@ export async function onRequest(context) {
 
     return await handleApi(context.request, context.env.DB, requestUrl);
   } catch (error) {
+    if (error instanceof ApiError) {
+      return sendJson(error.status, { error: error.message });
+    }
+
     console.error(error);
     return sendJson(500, { error: "서버 오류가 발생했습니다." });
   }
@@ -216,7 +228,44 @@ async function readJsonBody(request) {
     return {};
   }
 
-  return request.json();
+  const declaredLength = Number(request.headers.get("Content-Length") || 0);
+  if (declaredLength > MAX_BODY_BYTES) {
+    throw new ApiError(413, "요청 본문이 너무 큽니다.");
+  }
+
+  // Content-Length can be absent or wrong, so enforce the cap while reading
+  // instead of buffering an arbitrarily large body into Worker memory.
+  const reader = request.body.getReader();
+  const chunks = [];
+  let received = 0;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    received += value.byteLength;
+    if (received > MAX_BODY_BYTES) {
+      await reader.cancel();
+      throw new ApiError(413, "요청 본문이 너무 큽니다.");
+    }
+
+    chunks.push(value);
+  }
+
+  if (received === 0) {
+    return {};
+  }
+
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
 
 async function getUser(db, usernameKey) {
